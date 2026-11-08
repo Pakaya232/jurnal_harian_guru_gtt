@@ -692,8 +692,22 @@
               <p class="mt-0.5 text-blue-800">Saat Anda berpindah bulan, data bulan yang sudah ada tidak akan hilang. Setiap bulan memiliki arsip terpisah dalam memori sistem. Hari Sabtu dan Minggu akan otomatis ditandai sebagai "Weekend".</p>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div class="flex flex-wrap gap-3 mt-6 pt-6 border-t border-slate-100">
+      <!-- ========================================================
+           VIEW: JADWAL PELAJARAN
+      ======================================================== -->
+      <section id="view-jadwal" class="hidden max-w-4xl mx-auto space-y-6">
+        <div class="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
+            <div>
+              <h2 class="text-xl font-bold text-slate-800">Master Jadwal Pelajaran</h2>
+              <p class="text-xs text-slate-500 mt-1">Atur jadwal mengajar mingguan Anda di sini. Jadwal ini akan digunakan untuk pengisian otomatis jurnal harian dan pendistribusian silabus materi.</p>
+            </div>
+            <span class="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-lg">Master Schedule</span>
+          </div>
+
           <form id="formTambahJadwal" onsubmit="handleAddJadwal(event)" class="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
@@ -721,6 +735,7 @@
                   <option value="XI-Koku">XI-Koku</option>
                   <option value="XII-PAI">XII-PAI</option>
                   <option value="XII-Koku">XII-Koku</option>
+                  <option value="Piket">Piket</option>
                 </select>
               </div>
             </div>
@@ -1344,7 +1359,7 @@
     ======================================================== */
     const STORAGE_KEY_IDENTITAS = "JURNAL_GURU_IDENTITAS_V2";
     const STORAGE_KEY_BULANAN = "JURNAL_GURU_DATA_BULANAN_V2";
-    const STORAGE_KEY_JADWAL = "JURNAL_GURU_JADWAL_V2";
+    const STORAGE_KEY_JADWAL = "JURNAL_GURU_JADWAL_V3"; // Updated key to force new schedule
     const STORAGE_KEY_MATERI = "JURNAL_GURU_MATERI_V2";
 
     // Default Identity exactly as requested
@@ -1362,6 +1377,25 @@
       jabatanGuru: "Guru Mata Pelajaran",
       tempatTtd: "Batudaa Pantai"
     };
+
+    // Default Master Jadwal Pelajaran
+    const defaultJadwal = [
+      { id: 'jdw_1', hari: 'Senin', jamMulai: '12.45', jamSelesai: '14.15', kelasMp: 'XA-Koku' },
+      { id: 'jdw_2', hari: 'Senin', jamMulai: '14.15', jamSelesai: '15.45', kelasMp: 'XB-Eko' },
+      
+      { id: 'jdw_3', hari: 'Selasa', jamMulai: '08.45', jamSelesai: '09.30', kelasMp: 'XII-Koku' },
+      { id: 'jdw_4', hari: 'Selasa', jamMulai: '09.30', jamSelesai: '11.30', kelasMp: 'XII-PAI' },
+      { id: 'jdw_5', hari: 'Selasa', jamMulai: '12.45', jamSelesai: '14.15', kelasMp: 'XA-Eko' },
+      
+      { id: 'jdw_6', hari: 'Rabu', jamMulai: '07.15', jamSelesai: '08.45', kelasMp: 'XI-PAI' },
+      { id: 'jdw_7', hari: 'Rabu', jamMulai: '08.45', jamSelesai: '09.30', kelasMp: 'XI-Koku' },
+      { id: 'jdw_8', hari: 'Rabu', jamMulai: '14.15', jamSelesai: '15.45', kelasMp: 'XB-Koku' },
+      
+      { id: 'jdw_9', hari: 'Kamis', jamMulai: '07.15', jamSelesai: '08.45', kelasMp: 'XB-PAI' },
+      { id: 'jdw_10', hari: 'Kamis', jamMulai: '14.15', jamSelesai: '15.45', kelasMp: 'XA-PAI' },
+      
+      { id: 'jdw_11', hari: 'Jumat', jamMulai: '07.15', jamSelesai: '11.30', kelasMp: 'Piket' }
+    ];
 
     // Complete exact transcript of September 2026 from the reference PDF (30 full days)
     const sampleSeptember2026 = [
@@ -2273,8 +2307,12 @@
         try {
           jadwalPelajaran = JSON.parse(savedJadwal);
         } catch(e) {
-          jadwalPelajaran = [];
+          jadwalPelajaran = [...defaultJadwal];
+          localStorage.setItem(STORAGE_KEY_JADWAL, JSON.stringify(jadwalPelajaran));
         }
+      } else {
+        jadwalPelajaran = [...defaultJadwal];
+        localStorage.setItem(STORAGE_KEY_JADWAL, JSON.stringify(jadwalPelajaran));
       }
 
       // 4. Load or Save Bank Materi
@@ -3362,7 +3400,7 @@
         "XA-Koku", "XA-PAI", "XA-Eko", 
         "XB-Koku", "XB-PAI", "XB-Eko", 
         "XI-PAI", "XI-Koku", 
-        "XII-PAI", "XII-Koku"
+        "XII-PAI", "XII-Koku", "Piket"
       ]);
 
       jadwalPelajaran.forEach(j => {
@@ -3453,7 +3491,9 @@
         const arrMateri = bankMateri[cls] || [];
         
         let textMateri = "";
-        if (idx < arrMateri.length) {
+        if (cls === 'Piket') {
+            textMateri = "Melaksanakan Tugas Piket / Menjaga Ketertiban Sekolah";
+        } else if (idx < arrMateri.length) {
             textMateri = arrMateri[idx];
         } else if (arrMateri.length > 0) {
             textMateri = "Materi Lanjutan / Review";
@@ -3582,7 +3622,9 @@
              const idx = pointers[cls];
              let textMateri = "";
              
-             if (idx < arrMateri.length) {
+             if (cls === 'Piket') {
+                textMateri = "Melaksanakan Tugas Piket / Menjaga Ketertiban Sekolah";
+             } else if (idx < arrMateri.length) {
                 textMateri = arrMateri[idx];
              } else if (arrMateri.length > 0) {
                 textMateri = "Materi Lanjutan / Review"; 
@@ -3880,11 +3922,17 @@
         });
       } else if (d.kegiatan && d.kegiatan.length > 0) {
         d.kegiatan.forEach(k => {
+          let rType = 'kegiatan';
+          let rMateri = k.materi || '';
+          if (k.kelasMp === 'Piket' || rMateri.toLowerCase().includes('piket')) {
+              rType = 'piket';
+          }
+          
           subRows.push({
-            type: 'kegiatan',
+            type: rType,
             jam: k.jam || '',
             kelasMp: k.kelasMp || '',
-            materi: k.materi || '',
+            materi: rMateri,
             h: k.jlhH || '',
             th: k.jlhTh || '',
             ket: k.ket || '',
@@ -3957,10 +4005,10 @@
 
         html += `<td class="col-jam ${r.type.startsWith('absen') ? 'font-mono' : ''}">${r.jam}</td>`;
         
-        // Merge Cell Horizontal untuk baris khusus absen dan libur/weekend
+        // Merge Cell Horizontal untuk baris khusus absen, libur/weekend, dan piket
         // Penggabungan (colspan="6") meliputi: KELAS/MP, MATERI, H, TH, KET, dan TTD
-        if (r.type === 'absen-datang' || r.type === 'absen-pulang' || r.type === 'weekend' || r.type === 'libur') {
-          html += `<td colspan="6" style="text-align: center; ${r.type === 'weekend' || r.type === 'libur' ? 'font-weight: 600;' : 'font-weight: 500;'}">${r.materi}</td>`;
+        if (r.type === 'absen-datang' || r.type === 'absen-pulang' || r.type === 'weekend' || r.type === 'libur' || r.type === 'piket') {
+          html += `<td colspan="6" style="text-align: center; ${r.type === 'weekend' || r.type === 'libur' || r.type === 'piket' ? 'font-weight: 600;' : 'font-weight: 500;'}">${r.materi}</td>`;
         } else {
           html += `<td class="col-kelas-mp">${r.kelasMp}</td>`;
           html += `<td class="col-materi" style="${isHolidayOrWeekend ? 'font-weight: 600;' : ''}">${r.materi}</td>`;
@@ -4188,7 +4236,11 @@
           addRow("", "", d.isWeekend ? "Weekend" : "Hari Libur Nasional", "", "", "", "libur");
         } else if (d.kegiatan && d.kegiatan.length > 0) {
           d.kegiatan.forEach(k => {
-            addRow(k.jam || "", k.kelasMp || "", k.materi || "", k.jlhH || "", k.jlhTh || "", k.ket || "", "normal");
+            let kType = "normal";
+            if (k.kelasMp === 'Piket' || (k.materi && k.materi.toLowerCase().includes('piket'))) {
+               kType = "piket";
+            }
+            addRow(k.jam || "", k.kelasMp || "", k.materi || "", k.jlhH || "", k.jlhTh || "", k.ket || "", kType);
           });
         } else {
           addRow("", "", "", "", "", "", "normal"); // Baris kosong
@@ -4204,10 +4256,10 @@
           worksheet.mergeCells(`J${startRow}:J${currentRow - 1}`);
         }
 
-        // Terapkan Merge Cell (Horizontal) untuk Absen Datang, Pulang, dan Weekend
+        // Terapkan Merge Cell (Horizontal) untuk Absen Datang, Pulang, Libur, dan Piket
         for (let r = startRow; r < currentRow; r++) {
           const rType = rowTypes[r];
-          if (rType === 'datang' || rType === 'pulang' || rType === 'libur') {
+          if (rType === 'datang' || rType === 'pulang' || rType === 'libur' || rType === 'piket') {
              // Menggabungkan dari Kelas/MP (D) sampai TTD (I)
              worksheet.mergeCells(`D${r}:I${r}`);
           }
