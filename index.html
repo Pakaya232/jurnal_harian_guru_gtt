@@ -1356,6 +1356,110 @@
   </div>
 
   <!-- JAVASCRIPT LOGIC ENGINE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'jurnal-guru-app';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let unsubMonth = null;
+
+    async function initCloud() {
+        if (typeof __initial_auth_token !== 'undefined') {
+            await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+            await signInAnonymously(auth);
+        }
+
+        const user = auth.currentUser;
+        if (!user) return;
+        const uid = user.uid;
+
+        const settingsCol = collection(db, 'artifacts', appId, 'users', uid, 'settings');
+
+        // Sinkronisasi Pengaturan Identitas
+        onSnapshot(doc(settingsCol, 'identitas'), (snap) => {
+            if (snap.exists()) {
+                window.currentIdentitas = snap.data();
+                if(window.updateTopBarAndIdentityForm) window.updateTopBarAndIdentityForm();
+            }
+        }, (e) => console.error(e));
+
+        // Sinkronisasi Jadwal Pelajaran
+        onSnapshot(doc(settingsCol, 'jadwal'), (snap) => {
+            if (snap.exists()) {
+                window.jadwalPelajaran = snap.data().data || [];
+                if(window.renderJadwalView) window.renderJadwalView();
+                if(window.updateDatalistsFromJadwal) window.updateDatalistsFromJadwal();
+            }
+        }, (e) => console.error(e));
+
+        // Sinkronisasi Bank Materi
+        onSnapshot(doc(settingsCol, 'materi'), (snap) => {
+            if (snap.exists()) {
+                window.bankMateri = snap.data().data || {};
+                if(window.renderBankMateriList) window.renderBankMateriList();
+            }
+        }, (e) => console.error(e));
+
+        // Penarik Data Bulan Spesifik (Otomatis menyesuaikan tampilan bulan UI)
+        window.listenToMonthCloud = function(periodKey) {
+            if (unsubMonth) unsubMonth();
+            // Menyimpan per-hari dalam collection khusus agar tidak limit 1MB jika penuh foto
+            const monthCol = collection(db, 'artifacts', appId, 'users', uid, `jurnal_${periodKey.replace('-', '_')}`);
+            
+            unsubMonth = onSnapshot(monthCol, (snapshot) => {
+                if (!window.allMonthsData[periodKey]) {
+                    window.allMonthsData[periodKey] = window.generateMonthEmptyDays(window.selectedTahun, window.selectedBulanIndex);
+                }
+                
+                if (!snapshot.empty) {
+                    snapshot.forEach(docSnap => {
+                        const dayData = docSnap.data();
+                        const idx = window.allMonthsData[periodKey].findIndex(d => d.tanggal === dayData.tanggal);
+                        if(idx !== -1) window.allMonthsData[periodKey][idx] = dayData;
+                    });
+                } else {
+                    // Suntik data master khusus untuk bulan September 2026 pertama kali
+                    if (periodKey === "2026-8") {
+                        window.allMonthsData[periodKey] = JSON.parse(JSON.stringify(window.sampleSeptember2026));
+                        window.allMonthsData[periodKey].forEach(d => window.saveDayToCloud(periodKey, d.tanggal, d));
+                    }
+                }
+                if(window.refreshAllViews) window.refreshAllViews();
+            }, (e) => console.error(e));
+        };
+
+        window.saveDayToCloud = function(periodKey, dayNum, data) {
+            if(!auth.currentUser) return;
+            const ref = doc(db, 'artifacts', appId, 'users', uid, `jurnal_${periodKey.replace('-', '_')}`, dayNum.toString());
+            setDoc(ref, data).catch(console.error);
+        };
+
+        window.saveSettingsToCloud = function(type, data) {
+            if(!auth.currentUser) return;
+            const ref = doc(db, 'artifacts', appId, 'users', uid, 'settings', type);
+            if(type === 'identitas') setDoc(ref, data).catch(console.error);
+            else setDoc(ref, {data: data}).catch(console.error);
+        };
+
+        // Tunggu hingga fungsi siap, lalu dengarkan data bulan aktif saat ini
+        setTimeout(() => {
+            if (window.getCurrentPeriodKey) {
+                window.listenToMonthCloud(window.getCurrentPeriodKey());
+            }
+        }, 300);
+    }
+
+    initCloud();
+  </script>
+
   <script>
     /* ========================================================
        DATA STORE & INITIAL DEFAULT VALUES
@@ -2256,13 +2360,14 @@
     ];
 
     // State Variables
-    let currentIdentitas = { ...defaultIdentitas };
-    let allMonthsData = {}; // Format: { "2026-8": [days...] } (month is 0-indexed)
-    let jadwalPelajaran = []; // Jadwal Pelajaran Permanen
-    let bankMateri = {}; // Bank Materi Silabus Permanen
-    let selectedBulanIndex = 8; // September
-    let selectedTahun = 2026;
-    let currentZoom = 1.0;
+    var currentIdentitas = { ...defaultIdentitas };
+    var allMonthsData = {}; // Format: { "2026-8": [days...] } (month is 0-indexed)
+    var jadwalPelajaran = []; // Jadwal Pelajaran Permanen
+    var bankMateri = {}; // Bank Materi Silabus Permanen
+    var selectedBulanIndex = 8; // September
+    var selectedTahun = 2026;
+    var currentZoom = 1.0;
+    window.sampleSeptember2026 = sampleSeptember2026;
 
     const namaBulanIndo = [
       "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -2279,78 +2384,27 @@
     window.onload = function() {
       initAppStorage();
       bindEvents();
-      refreshAllViews();
     };
 
     function initAppStorage() {
-      // 1. Load or Save Identity
-      const savedIdentitas = localStorage.getItem(STORAGE_KEY_IDENTITAS);
-      if (savedIdentitas) {
-        try {
-          currentIdentitas = JSON.parse(savedIdentitas);
-        } catch(e) {
-          currentIdentitas = { ...defaultIdentitas };
-        }
-      } else {
-        localStorage.setItem(STORAGE_KEY_IDENTITAS, JSON.stringify(defaultIdentitas));
-      }
-
-      // 2. Load or Save Monthly Data
-      const savedData = localStorage.getItem(STORAGE_KEY_BULANAN);
-      if (savedData) {
-        try {
-          allMonthsData = JSON.parse(savedData);
-        } catch(e) {
-          allMonthsData = {};
-        }
-      }
-
-      // 3. Load or Save Jadwal Pelajaran
-      const savedJadwal = localStorage.getItem(STORAGE_KEY_JADWAL);
-      if (savedJadwal) {
-        try {
-          jadwalPelajaran = JSON.parse(savedJadwal);
-        } catch(e) {
-          jadwalPelajaran = [...defaultJadwal];
-          localStorage.setItem(STORAGE_KEY_JADWAL, JSON.stringify(jadwalPelajaran));
-        }
-      } else {
-        jadwalPelajaran = [...defaultJadwal];
-        localStorage.setItem(STORAGE_KEY_JADWAL, JSON.stringify(jadwalPelajaran));
-      }
-
-      // 4. Load or Save Bank Materi
-      const savedMateri = localStorage.getItem(STORAGE_KEY_MATERI);
-      if (savedMateri) {
-        try {
-          bankMateri = JSON.parse(savedMateri);
-        } catch(e) {
-          bankMateri = {};
-        }
-      }
-
-      // Ensure September 2026 has the verified master reference dataset
+      // Data base akan ditarik secara cerdas oleh Firebase Cloud
+      // UI akan dirender dengan data awal hingga respon awan datang (Real-time).
+      currentIdentitas = { ...defaultIdentitas };
+      jadwalPelajaran = [...defaultJadwal];
+      
       const septKey = "2026-8";
-      if (!allMonthsData[septKey] || allMonthsData[septKey].length === 0) {
+      if (!allMonthsData[septKey]) {
         allMonthsData[septKey] = JSON.parse(JSON.stringify(sampleSeptember2026));
-        saveMonthlyDataToStorage();
       }
+      refreshAllViews();
     }
 
     function saveMonthlyDataToStorage() {
-      try {
-        localStorage.setItem(STORAGE_KEY_BULANAN, JSON.stringify(allMonthsData));
-      } catch (err) {
-        console.warn("Storage quota warning:", err);
-      }
+      // Tidak diperlukan lagi karena kita upload per hari menggunakan saveDayToCloud() untuk mencegah error Document Too Large
     }
 
     function saveIdentitasToStorage() {
-      try {
-        localStorage.setItem(STORAGE_KEY_IDENTITAS, JSON.stringify(currentIdentitas));
-      } catch (err) {
-        console.warn("Storage quota warning:", err);
-      }
+      if(window.saveSettingsToCloud) window.saveSettingsToCloud('identitas', currentIdentitas);
     }
 
     /* ========================================================
@@ -2502,7 +2556,13 @@
       currentIdentitas.bulan = namaBulanIndo[selectedBulanIndex];
       saveIdentitasToStorage();
 
-      refreshAllViews();
+      // Minta Awan (Cloud) untuk memuat data bulan yang dipilih
+      if(window.listenToMonthCloud) {
+         window.listenToMonthCloud(getCurrentPeriodKey());
+      } else {
+         refreshAllViews();
+      }
+
       showToast(`Periode diubah ke ${namaBulanIndo[selectedBulanIndex]} ${selectedTahun}`);
       switchView('view-jurnal-bulanan');
     }
@@ -3258,7 +3318,7 @@
         days[targetIndex].labelDokumentasiHari = labelDokumentasiHari;
         days[targetIndex].kegiatan = kegiatanList;
 
-        saveMonthlyDataToStorage();
+        if(window.saveDayToCloud) window.saveDayToCloud(getCurrentPeriodKey(), dateNum, days[targetIndex]);
         refreshAllViews();
         closeFormInputModal();
         showToast(`Data jurnal tanggal ${dateNum} berhasil disimpan!`);
@@ -3288,7 +3348,8 @@
           dokumentasi: "",
           fotoDokumentasi: ""
         }] : [];
-        saveMonthlyDataToStorage();
+        
+        if(window.saveDayToCloud) window.saveDayToCloud(getCurrentPeriodKey(), dateNum, target);
         refreshAllViews();
         showToast(`Data tanggal ${dateNum} telah direset.`);
       }
@@ -3408,9 +3469,7 @@
         showToast("Jadwal pelajaran berhasil ditambahkan.");
       }
 
-      try {
-        localStorage.setItem(STORAGE_KEY_JADWAL, JSON.stringify(jadwalPelajaran));
-      } catch (err) {}
+      if(window.saveSettingsToCloud) window.saveSettingsToCloud('jadwal', jadwalPelajaran);
 
       renderJadwalView();
       updateDatalistsFromJadwal();
@@ -3419,9 +3478,7 @@
 
     function deleteJadwal(id) {
       jadwalPelajaran = jadwalPelajaran.filter(j => j.id !== id);
-      try {
-        localStorage.setItem(STORAGE_KEY_JADWAL, JSON.stringify(jadwalPelajaran));
-      } catch (err) {}
+      if(window.saveSettingsToCloud) window.saveSettingsToCloud('jadwal', jadwalPelajaran);
       
       renderJadwalView();
       updateDatalistsFromJadwal();
@@ -3567,9 +3624,7 @@
       const materiArray = listText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
       bankMateri[kelas] = materiArray;
       
-      try {
-        localStorage.setItem(STORAGE_KEY_MATERI, JSON.stringify(bankMateri));
-      } catch (err) {}
+      if(window.saveSettingsToCloud) window.saveSettingsToCloud('materi', bankMateri);
       
       showToast(`Berhasil menyimpan ${materiArray.length} materi untuk kelas ${kelas}`);
       document.getElementById('inpMateriList').value = '';
@@ -3616,9 +3671,7 @@
 
     function deleteBankMateri(cls) {
       delete bankMateri[cls];
-      try {
-        localStorage.setItem(STORAGE_KEY_MATERI, JSON.stringify(bankMateri));
-      } catch (err) {}
+      if(window.saveSettingsToCloud) window.saveSettingsToCloud('materi', bankMateri);
       renderBankMateriList();
       showToast(`Materi silabus untuk kelas ${cls} berhasil dihapus.`);
     }
@@ -3699,11 +3752,11 @@
           });
 
           d.kegiatan = newKegiatan;
+          if(window.saveDayToCloud) window.saveDayToCloud(getCurrentPeriodKey(), d.tanggal, d);
           appliedDaysCount++;
         }
       });
 
-      saveMonthlyDataToStorage();
       refreshAllViews();
       showToast(`Jadwal & Silabus sukses diterapkan pada ${appliedDaysCount} hari kerja efektif!`);
       switchView('view-jurnal-bulanan');
