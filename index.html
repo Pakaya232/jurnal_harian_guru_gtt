@@ -3189,6 +3189,19 @@
           dokumentasi: "",
           fotoDokumentasi: ""
         });
+      } else if (val === 'NORMAL') {
+        const list = document.getElementById('modalActivitiesList');
+        list.innerHTML = '';
+        appendActivityRow({
+          jam: "",
+          kelasMp: "",
+          materi: "",
+          ket: "Jurnal GTT",
+          jlhH: "",
+          jlhTh: "",
+          dokumentasi: "",
+          fotoDokumentasi: ""
+        });
       }
     }
 
@@ -3484,9 +3497,10 @@
       const selectedDate = parseInt(document.getElementById('modalSelectTanggal').value);
       const days = getCurrentMonthDays();
       const dayData = days.find(d => d.tanggal === selectedDate);
+      const currentStatus = document.getElementById('modalStatusHari').value;
       
-      if (!dayData || dayData.isWeekend || dayData.isLibur) {
-        showToast("Pengisian otomatis tidak tersedia di hari libur.", "warning");
+      if (!dayData || currentStatus !== 'NORMAL') {
+        showToast("Pengisian otomatis jadwal dan materi hanya untuk Hari Kerja Efektif.", "warning");
         return;
       }
 
