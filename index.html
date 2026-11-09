@@ -1218,6 +1218,7 @@
               <option value="NORMAL">Hari Kerja Efektif</option>
               <option value="WEEKEND">Weekend (Sabtu/Minggu)</option>
               <option value="LIBUR">Hari Libur Nasional</option>
+              <option value="LAINNYA">Agenda Sekolah / Lainnya</option>
             </select>
           </div>
         </div>
@@ -2950,6 +2951,8 @@
         statusVal = 'LIBUR';
       } else if (dayData.isWeekend || dayData.statusHari === 'WEEKEND') {
         statusVal = 'WEEKEND';
+      } else if (dayData.statusHari === 'LAINNYA') {
+        statusVal = 'LAINNYA';
       }
       document.getElementById('modalStatusHari').value = statusVal;
       document.getElementById('modalJamDatang').value = dayData.jamDatang || '';
@@ -3172,6 +3175,20 @@
           dokumentasi: "",
           fotoDokumentasi: ""
         });
+      } else if (val === 'LAINNYA') {
+        // Biarkan jam datang/pulang jika sudah ada (karena guru mungkin tetap absen siransija saat agenda sekolah)
+        const list = document.getElementById('modalActivitiesList');
+        list.innerHTML = '';
+        appendActivityRow({
+          jam: "",
+          kelasMp: "",
+          materi: "",
+          ket: "Agenda Sekolah",
+          jlhH: "",
+          jlhTh: "",
+          dokumentasi: "",
+          fotoDokumentasi: ""
+        });
       }
     }
 
@@ -3181,6 +3198,7 @@
       const statusHariVal = document.getElementById('modalStatusHari').value;
       const isWeekend = (statusHariVal === 'WEEKEND');
       const isLibur = (statusHariVal === 'LIBUR');
+      const isLainnya = (statusHariVal === 'LAINNYA');
       const jamDatang = document.getElementById('modalJamDatang').value.trim();
       const jamPulang = document.getElementById('modalJamPulang').value.trim();
       const fotoDokumentasiHari = document.getElementById('modalFotoHariBase64').value;
@@ -3222,6 +3240,7 @@
         days[targetIndex].statusHari = statusHariVal;
         days[targetIndex].isWeekend = isWeekend;
         days[targetIndex].isLibur = isLibur;
+        days[targetIndex].isLainnya = isLainnya;
         days[targetIndex].fotoDokumentasiHari = fotoDokumentasiHari;
         days[targetIndex].labelDokumentasiHari = labelDokumentasiHari;
         days[targetIndex].kegiatan = kegiatanList;
@@ -3601,8 +3620,8 @@
       let appliedDaysCount = 0;
 
       days.forEach(d => {
-        // Lewati weekend (Sabtu/Minggu) & hari libur nasional
-        if (d.isWeekend || d.isLibur || d.statusHari === 'WEEKEND' || d.statusHari === 'LIBUR') {
+        // Lewati weekend (Sabtu/Minggu) & hari libur nasional & Agenda lainnya
+        if (d.isWeekend || d.isLibur || d.statusHari === 'WEEKEND' || d.statusHari === 'LIBUR' || d.statusHari === 'LAINNYA') {
           return; 
         }
 
