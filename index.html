@@ -891,6 +891,9 @@
               <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
               <input type="text" id="searchTableInput" oninput="renderTableJurnalBulanan()" placeholder="Cari tanggal/materi..." class="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 w-44">
             </div>
+            <button onclick="distribusiJadwalMateri()" class="px-3.5 py-2 text-xs font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition">
+              <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Auto-Isi Jadwal & Silabus
+            </button>
             <button onclick="openFormInputModal()" class="px-3.5 py-2 text-xs font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition">
               <i class="fa-solid fa-plus mr-1"></i> Tambah Kegiatan
             </button>
@@ -3598,7 +3601,7 @@
       let appliedDaysCount = 0;
 
       days.forEach(d => {
-        // Lewati weekend & hari libur
+        // Lewati weekend (Sabtu/Minggu) & hari libur nasional
         if (d.isWeekend || d.isLibur || d.statusHari === 'WEEKEND' || d.statusHari === 'LIBUR') {
           return; 
         }
@@ -3606,7 +3609,7 @@
         // Cek manual override: Jika hari ini digunakan untuk Agenda Khusus (Rapat/Sakit/Izin tanpa KBM)
         const hasAgendaKhusus = d.kegiatan && d.kegiatan.length > 0 && d.kegiatan.some(k => !k.kelasMp && k.materi && !k.materi.toLowerCase().includes('absen') && k.materi !== 'Weekend');
         if (hasAgendaKhusus) {
-          return; // Lewati hari ini. Materi otomatis tergeser ke jadwal kelas berikutnya.
+          return; // Lewati hari ini. Materi otomatis tergeser (tidak hangus) ke jadwal kelas berikutnya.
         }
 
         const jadwalHariIni = jadwalPelajaran.filter(j => j.hari === d.hari).sort((a,b) => a.jamMulai.localeCompare(b.jamMulai));
@@ -3630,8 +3633,10 @@
                 textMateri = "Materi Lanjutan / Review"; 
              }
 
-             // Ambil H, TH, Foto yang mungkin sudah pernah diisi manual agar tidak hilang tertimpa
+             // Ambil H, TH, Keterangan, Foto yang mungkin sudah pernah diisi manual agar tidak hilang tertimpa
              let exH = "", exTh = "", exFoto = "", exDok = "";
+             let exKet = "Jurnal GTT";
+
              if (d.kegiatan) {
                 const ex = d.kegiatan.find(k => k.kelasMp === cls && k.jam === `${j.jamMulai}-${j.jamSelesai}`);
                 if (ex) {
@@ -3639,6 +3644,7 @@
                    exTh = ex.jlhTh || "";
                    exFoto = ex.fotoDokumentasi || "";
                    exDok = ex.dokumentasi || "";
+                   exKet = ex.ket || "Jurnal GTT";
                 }
              }
 
@@ -3646,14 +3652,17 @@
                jam: `${j.jamMulai}-${j.jamSelesai}`,
                kelasMp: cls,
                materi: textMateri,
-               ket: "Jurnal GTT",
+               ket: exKet,
                jlhH: exH,
                jlhTh: exTh,
                dokumentasi: exDok,
                fotoDokumentasi: exFoto
              });
              
-             pointers[cls]++; 
+             // PENTING: Geser urutan materi (pointer) ke pertemuan berikutnya, KECUALI untuk Piket
+             if (cls !== 'Piket') {
+                pointers[cls]++; 
+             }
           });
 
           d.kegiatan = newKegiatan;
@@ -3663,7 +3672,7 @@
 
       saveMonthlyDataToStorage();
       refreshAllViews();
-      showToast(`Silabus sukses didistribusikan ke ${appliedDaysCount} hari. (Materi otomatis tergeser di hari libur)`);
+      showToast(`Jadwal & Silabus sukses diterapkan pada ${appliedDaysCount} hari kerja efektif!`);
       switchView('view-jurnal-bulanan');
     }
 
