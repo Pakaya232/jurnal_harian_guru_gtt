@@ -1361,8 +1361,18 @@
     import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'jurnal-guru-app';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const appId = 'jurnal-guru-app-milik-saya'; // Ini ID unik aplikasi Anda, biarkan seperti ini
+    
+    // --- TEMPEL KODE DARI FIREBASE DI SINI ---
+    const firebaseConfig = {
+      apiKey: "PASTE_API_KEY_ANDA_DISINI",
+      authDomain: "PASTE_AUTH_DOMAIN_ANDA_DISINI",
+      projectId: "PASTE_PROJECT_ID_ANDA_DISINI",
+      storageBucket: "PASTE_STORAGE_BUCKET_ANDA_DISINI",
+      messagingSenderId: "PASTE_SENDER_ID_ANDA_DISINI",
+      appId: "PASTE_APP_ID_ANDA_DISINI"
+    };
+    // -----------------------------------------
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -1371,10 +1381,13 @@
     let unsubMonth = null;
 
     async function initCloud() {
-        if (typeof __initial_auth_token !== 'undefined') {
-            await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
+        // HANYA GUNAKAN LOGIN ANONIM UNTUK STANDALONE APP
+        try {
             await signInAnonymously(auth);
+        } catch (error) {
+            console.error("Gagal konek ke Firebase Auth:", error);
+            showToast("Gagal menyinkronkan data. Cek pengaturan Firebase.", "error");
+            return;
         }
 
         const user = auth.currentUser;
