@@ -1387,7 +1387,11 @@
             await signInAnonymously(auth);
         } catch (error) {
             console.error("Gagal konek ke Firebase Auth:", error);
-            showToast("Gagal menyinkronkan data. Cek pengaturan Firebase.", "error");
+            if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
+                showToast("Firebase Error: Aktifkan Login Anonim (Anonymous) di tab Authentication!", "error");
+            } else {
+                showToast("Koneksi Cloud gagal. Berjalan dalam mode Offline lokal.", "warning");
+            }
             return;
         }
 
